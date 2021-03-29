@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=OBECA GUI
+Comment=GUI for OBECA
+Exec=/usr/bin/launch_obeca_gui.sh
+Icon=obeca-gui
+Terminal=false
+Type=Application

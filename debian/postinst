@@ -1,0 +1,4 @@
+#!/bin/sh
+
+set -e
+desktop-file-install --mode=0755 --dir=$HOME/Desktop /usr/share/applications/obeca-gui.desktop

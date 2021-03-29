@@ -1,0 +1,51 @@
+* {
+  font-size: 18px;
+}
+
+.no-focusborder:focus {
+  outline-style: none;
+  box-shadow: none;
+  border-color: transparent;
+  background-color: #222;
+  color: white;
+}
+
+.box {
+  padding: 12px;
+  margin: 3px;
+  border: 1px solid #555;
+  background: #353535;
+}
+
+.box-header {
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+.box-header-right {
+  margin-bottom: 10px;
+}
+
+.control-value {
+  font-weight: bold;
+}
+
+.control-value-ber {
+  font-weight: bold;
+  padding-right: 10px;
+}
+
+.mt-1 {
+  margin-top: 5px;
+}
+progress, trough {
+  min-height: 8px;
+}
+progress, trough .full {
+  background: #0c0;
+}
+
+.select-const-btn label{
+  font-size: 35px;
+  color: #2d2;
+}
+
