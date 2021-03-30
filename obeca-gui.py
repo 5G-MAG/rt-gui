@@ -1,3 +1,23 @@
+# OBECA - Open Broadcast Edge Cache Appliance
+# GUI 
+#
+# Copyright (C) 2021 Österreichische Rundfunksender GmbH & Co KG
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+
 import gi
 import os
 gi.require_version('Gtk', '3.0') 
@@ -10,6 +30,7 @@ import time
 import struct
 import psutil
 
+api_url = 'http://localhost:3000/rp-api/'
 
 main_loop = GLib.MainLoop()
 
@@ -27,7 +48,7 @@ class OfrWindow(Gtk.Window):
 
     def gain_down( self, foo, bar ):
         print("Decrease gain")
-        requests.put('http://localhost:3000/rp-api/sdr_params', json = 
+        requests.put(api_url + 'sdr_params', json = 
             {
                 'gain': self.gain_val - 0.1,
                 'frequency': self.fc,
@@ -37,7 +58,7 @@ class OfrWindow(Gtk.Window):
             })
     def gain_up( self, foo, bar ):
         print("Increase gain")
-        requests.put('http://localhost:3000/rp-api/sdr_params', json = 
+        requests.put(api_url + 'sdr_params', json = 
             {
                 'gain': self.gain_val + 0.1,
                 'frequency': self.fc,
@@ -549,27 +570,27 @@ class OfrWindow(Gtk.Window):
                         (down_bytes/(now-last_net_time)*8.0/1000000.0), (up_bytes/(now-last_net_time)*8.0/1000000.0))
                 last_net = psutil.net_io_counters()
                 last_net_time = time.time()
-                response = requests.get("http://localhost:3000/rp-api/status")
+                response = requests.get(api_url + "status")
                 rj = response.json()
-                response = requests.get("http://localhost:3000/rp-api/sdr_params")
+                response = requests.get(api_url + "sdr_params")
                 sj = response.json()
                 GLib.idle_add(self.update_state, rj, sj)
-                response = requests.get("http://localhost:3000/rp-api/ce_values")
+                response = requests.get(api_url + "ce_values")
                 ce = response.content
                 GLib.idle_add(self.update_ce_graph, ce)
-                response = requests.get("http://localhost:3000/rp-api/pdsch_data")
+                response = requests.get(api_url + "pdsch_data")
                 GLib.idle_add(self.update_constellation, self.pdsch_box, response.content)
-                response = requests.get("http://localhost:3000/rp-api/pdsch_status")
+                response = requests.get(api_url + "pdsch_status")
                 GLib.idle_add(self.update_pmch_status, self.pdsch_box, response.json())
-                response = requests.get("http://localhost:3000/rp-api/mch_info")
+                response = requests.get(api_url + "mch_info")
                 GLib.idle_add(self.update_services, response.json())
-                response = requests.get("http://localhost:3000/rp-api/mcch_data")
+                response = requests.get(api_url + "mcch_data")
                 GLib.idle_add(self.update_constellation, self.mcch_box, response.content)
-                response = requests.get("http://localhost:3000/rp-api/mcch_status")
+                response = requests.get(api_url + "mcch_status")
                 GLib.idle_add(self.update_pmch_status, self.mcch_box, response.json())
-                response = requests.get("http://localhost:3000/rp-api/mch_status/" + str(self.selected_mch))
+                response = requests.get(api_url + "mch_status/" + str(self.selected_mch))
                 GLib.idle_add(self.update_pmch_status, self.pmch0_box, response.json())
-                response = requests.get("http://localhost:3000/rp-api/mch_data/" + str(self.selected_mch))
+                response = requests.get(api_url + "mch_data/" + str(self.selected_mch))
                 print(self.selected_mch)
                 GLib.idle_add(self.update_constellation, self.pmch0_box, response.content)
             except:
