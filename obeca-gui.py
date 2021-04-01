@@ -452,6 +452,8 @@ class OfrWindow(Gtk.Window):
         self.clear_values(self.mcch_box)
         self.clear_values(self.pmch0_box)
         self.pmch0_box.hide()
+        for ch in self.channels_box.get_children():
+            self.channels_box.remove(ch)
         return False
 
     def update_ce_graph(self, ce):
@@ -591,7 +593,6 @@ class OfrWindow(Gtk.Window):
                 response = requests.get(api_url + "mch_status/" + str(self.selected_mch))
                 GLib.idle_add(self.update_pmch_status, self.pmch0_box, response.json())
                 response = requests.get(api_url + "mch_data/" + str(self.selected_mch))
-                print(self.selected_mch)
                 GLib.idle_add(self.update_constellation, self.pmch0_box, response.content)
             except:
                 GLib.idle_add(self.rp_not_running)
