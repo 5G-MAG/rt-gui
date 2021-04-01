@@ -55,7 +55,7 @@ class OfrWindow(Gtk.Window):
                 'antenna': self.antenna_val,
                 'sample_rate': self.sr,
                 'filter_bw': self.filter_bw_val
-            })
+            }, verify=False)
     def gain_up( self, foo, bar ):
         print("Increase gain")
         requests.put(api_url + 'sdr_params', json = 
@@ -65,7 +65,7 @@ class OfrWindow(Gtk.Window):
                 'antenna': self.antenna_val,
                 'sample_rate': self.sr,
                 'filter_bw': self.filter_bw_val
-            })
+            }, verify=False)
 
     def select_mch_constellation( self, widget, data ):
         self.selected_mch = data
