@@ -252,6 +252,11 @@ class OfrWindow(Gtk.Window):
         self.add_control( controls, ctrl_row, "Δf", self.subc_label, "kHz")
         ctrl_row += 1
 
+        self.cinr_label = Gtk.Label(label="-", xalign=1)
+        self.cinr_label.get_style_context().add_class("control-value")
+        self.add_control( controls, ctrl_row, "CINR", self.cinr_label, "dB")
+        ctrl_row += 1
+
         sync_box.pack_start(controls, True, True, 0)
 
         return sync_box
@@ -444,6 +449,7 @@ class OfrWindow(Gtk.Window):
         self.prb_label.set_text("-")
         self.cell_id_label.set_text("-")
         self.subc_label.set_text("-")
+        self.cinr_label.set_text("-")
         self.cfo_label.set_text("-")
         self.width_label.set_text("-")
         self.buffer_level.set_fraction(0)
@@ -470,12 +476,12 @@ class OfrWindow(Gtk.Window):
         box.constellation.pmch_data = data
         box.constellation.queue_draw()
 
-    def update_pmch_status(self, box, status):
+    def update_pmch_status(self, box, status, sublabel_text):
         if status['present'] == True:
             box.show()
         if status['present'] == False:
             box.hide()
-        box.sublabel.set_text("MCH {:d}".format(self.selected_mch))
+        box.sublabel.set_text(sublabel_text)#"MCH {:d}".format(self.selected_mch))
         box.pmch_bler.set_text("{:.3f}".format(status['bler']))
         if status['ber'] != "-":
             box.pmch_ber.set_text("{:.3f}".format(status['ber']))
@@ -489,6 +495,7 @@ class OfrWindow(Gtk.Window):
             self.cell_id_label.set_text("{:d}".format(status['cell_id']))
             self.width_label.set_text("{:.0f}".format(status['nof_prb']*0.2))
             self.subc_label.set_text("{:.2f}".format(status['subcarrier_spacing']))
+            self.cinr_label.set_text("{:.2f}".format(status['cinr_db']))
             self.cfo_label.set_text("{:.3f}".format(status['cfo']/1000.0))
         else:
             self.prb_label.set_text("-")
@@ -583,15 +590,15 @@ class OfrWindow(Gtk.Window):
                 response = requests.get(api_url + "pdsch_data", verify=False)
                 GLib.idle_add(self.update_constellation, self.pdsch_box, response.content)
                 response = requests.get(api_url + "pdsch_status", verify=False)
-                GLib.idle_add(self.update_pmch_status, self.pdsch_box, response.json())
+                GLib.idle_add(self.update_pmch_status, self.pdsch_box, response.json(), "")
                 response = requests.get(api_url + "mch_info", verify=False)
                 GLib.idle_add(self.update_services, response.json())
                 response = requests.get(api_url + "mcch_data", verify=False)
                 GLib.idle_add(self.update_constellation, self.mcch_box, response.content)
                 response = requests.get(api_url + "mcch_status", verify=False)
-                GLib.idle_add(self.update_pmch_status, self.mcch_box, response.json())
+                GLib.idle_add(self.update_pmch_status, self.mcch_box, response.json(), "MCCH")
                 response = requests.get(api_url + "mch_status/" + str(self.selected_mch), verify=False)
-                GLib.idle_add(self.update_pmch_status, self.pmch0_box, response.json())
+                GLib.idle_add(self.update_pmch_status, self.pmch0_box, response.json(), "MCH {:d}".format(self.selected_mch))
                 response = requests.get(api_url + "mch_data/" + str(self.selected_mch), verify=False)
                 GLib.idle_add(self.update_constellation, self.pmch0_box, response.content)
             except:
