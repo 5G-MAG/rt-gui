@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-project (obeca-gui VERSION 1.0.0)
+project (obeca-gui VERSION 1.0.1)
 
 install(FILES launch_obeca_gui.sh 
   DESTINATION /usr/bin/
