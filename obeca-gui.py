@@ -35,6 +35,8 @@ import webbrowser
 rp_api_url = 'http://localhost:3010/rp-api/'
 gw_api_url = 'http://localhost:3020/gw-api/'
 
+gain_step = 2.0
+
 main_loop = GLib.MainLoop()
 
 class OfrWindow(Gtk.Window):
@@ -62,9 +64,9 @@ class OfrWindow(Gtk.Window):
 
     def gain_down( self, foo, bar ):
         print("Decrease gain")
-        requests.put(api_url + 'sdr_params', json = 
+        requests.put(rp_api_url + 'sdr_params', json = 
             {
-                'gain': self.gain_val - 0.1,
+                'gain': self.gain_val - gain_step,
                 'frequency': self.fc,
                 'antenna': self.antenna_val,
                 'sample_rate': self.sr,
@@ -72,9 +74,9 @@ class OfrWindow(Gtk.Window):
             }, verify=False)
     def gain_up( self, foo, bar ):
         print("Increase gain")
-        requests.put(api_url + 'sdr_params', json = 
+        requests.put(rp_api_url + 'sdr_params', json = 
             {
-                'gain': self.gain_val + 0.1,
+                'gain': self.gain_val + gain_step,
                 'frequency': self.fc,
                 'antenna': self.antenna_val,
                 'sample_rate': self.sr,
@@ -363,21 +365,27 @@ class OfrWindow(Gtk.Window):
 
         self.gain = Gtk.Label(label="-", xalign=1)
         self.gain.get_style_context().add_class("control-value")
-        self.add_control( controls, ctrl_row, "Gain", self.gain, "[0..1]")
+        self.gain_val_label = Gtk.Label(label="Gain", xalign=0)
+        controls.attach(self.gain_val_label, 0, ctrl_row, 1, 1)
+        self.gain.set_property("hexpand", True)
+        self.gain.set_property("valign", 3)
+        controls.attach(self.gain, 1, ctrl_row, 1, 1)
+        self.gain_unit_label = Gtk.Label(label="dB", xalign=0)
+        controls.attach(self.gain_unit_label, 2, ctrl_row, 1, 1)
         ctrl_row += 1
 
         gain_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        gain_down_button = Gtk.Button(label="−")
+        gain_down_button = Gtk.Button(label="− {:.0f} dB".format(gain_step))
         gain_down_button.set_property("height-request", 40)
-        gain_down_button.set_property("width-request", 75)
+        gain_down_button.set_property("width-request", 147)
         gain_down_button.connect("clicked", self.gain_down, None)
         gain_box.pack_start(gain_down_button, False, False, 0)
-        gain_up_button = Gtk.Button(label="+")
+        gain_up_button = Gtk.Button(label="+ {:.0f} dB".format(gain_step))
         gain_up_button.set_property("height-request", 40)
-        gain_up_button.set_property("width-request", 75)
+        gain_up_button.set_property("width-request", 147)
         gain_up_button.connect("clicked", self.gain_up, None)
         gain_box.pack_start(gain_up_button, False, False, 0)
-        controls.attach(gain_box, 1, ctrl_row, 1, 1)
+        controls.attach(gain_box, 0, ctrl_row, 3, 1)
         ctrl_row += 1
 
         self.antenna = Gtk.Label(label="-", xalign=1)
@@ -627,6 +635,7 @@ class OfrWindow(Gtk.Window):
         self.fcen.set_text("{:.2f}".format(sdr['frequency']/1000000.0))
         self.gain_val = sdr['gain']
         self.gain.set_text("{:.2f}".format(sdr['gain']))
+        self.gain_val_label.set_text("Gain ({:.0f}..{:.0f})".format(sdr['min_gain'],sdr['max_gain']))
         self.antenna.set_text(sdr['antenna'])
         self.antenna_val = sdr['antenna']
         self.sr = sdr['sample_rate']
