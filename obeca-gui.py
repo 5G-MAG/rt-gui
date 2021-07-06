@@ -29,8 +29,13 @@ import threading
 import time
 import struct
 import psutil
+import vlc
+import webbrowser
 
-api_url = 'http://localhost:3000/rp-api/'
+rp_api_url = 'http://localhost:3010/rp-api/'
+gw_api_url = 'http://localhost:3020/gw-api/'
+
+gain_step = 2.0
 
 main_loop = GLib.MainLoop()
 
@@ -38,19 +43,30 @@ class OfrWindow(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, title="OFR")
         self.sr = self.fc = 0
+        self.mode = 'rp';
         self.state = 'searching'
         self.mch_info = {}
         self.selected_mch = 0
         self.main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_property("hexpand", True)
+        self.set_property("vexpand", True)
+
+        self.files_store = Gtk.ListStore(int, str, int)
+        self.files_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
         self.add( self.main_box )
         self.add_top_box(self.main_box)
-        self.add_receiver_screen(self.main_box)
+        self.rp_screen = self.add_receiver_screen()
+        self.gw_screen = self.add_gateway_screen()
+        self.rp_screen.hide()
+        self.gw_screen.hide()
+        self.main_box.add( self.rp_screen )
+        self.main_box.add( self.gw_screen )
 
     def gain_down( self, foo, bar ):
         print("Decrease gain")
-        requests.put(api_url + 'sdr_params', json = 
+        requests.put(rp_api_url + 'sdr_params', json = 
             {
-                'gain': self.gain_val - 0.1,
+                'gain': self.gain_val - gain_step,
                 'frequency': self.fc,
                 'antenna': self.antenna_val,
                 'sample_rate': self.sr,
@@ -58,14 +74,31 @@ class OfrWindow(Gtk.Window):
             }, verify=False)
     def gain_up( self, foo, bar ):
         print("Increase gain")
-        requests.put(api_url + 'sdr_params', json = 
+        requests.put(rp_api_url + 'sdr_params', json = 
             {
-                'gain': self.gain_val + 0.1,
+                'gain': self.gain_val + gain_step,
                 'frequency': self.fc,
                 'antenna': self.antenna_val,
                 'sample_rate': self.sr,
                 'filter_bw': self.filter_bw_val
             }, verify=False)
+
+    def play_service( self, widget, service ):
+        print("play " + service["service_tmgi"]);
+        if service["stream_type"] == "UDP":
+            player = vlc.MediaPlayer("rtp://@"+service["stream_mcast"])
+            player.play() 
+        else:
+            webbrowser.open("http://localhost/application?s="+service["stream_tmgi"])
+
+    def select_mode( self, widget, data ):
+        self.mode = data
+        if self.mode == 'rp':
+            self.rp_screen.show()
+            self.gw_screen.hide()
+        elif self.mode == 'gw':
+            self.rp_screen.hide()
+            self.gw_screen.show()
 
     def select_mch_constellation( self, widget, data ):
         self.selected_mch = data
@@ -87,19 +120,28 @@ class OfrWindow(Gtk.Window):
         title_label.set_margin_left(20)
         title_label.set_margin_right(20)
         top_box.pack_start(title_label, False, False, 10)
-        app_btn = Gtk.Button(label="APPLICATION")
+
+        app_btn = Gtk.Button(label="")
+        app_label = app_btn.get_child()
+        app_version = "<b>APPLICATION</b>"
+        app_label.set_markup(app_version)
         app_btn.set_property("height-request", 50)
-        app_btn.set_sensitive(False);
-        gw_btn = Gtk.Button(label="GATEWAY")
-        gw_btn.set_property("height-request", 50)
-        gw_btn.set_sensitive(False);
         top_box.pack_end(app_btn, False, True, 0)
+        
+        gw_btn = Gtk.Button(label="")
+        gw_label = gw_btn.get_child()
+        gw_version = "<b>GATEWAY   </b><small>" + os.popen('gw --version').read().rstrip() + "</small>"
+        gw_label.set_markup(gw_version)
+        gw_btn.set_property("height-request", 50)
+        gw_btn.connect("clicked", self.select_mode, "gw");
         top_box.pack_end(gw_btn, False, True, 0)
+        
         rec_btn = Gtk.Button(label="")
         rec_label = rec_btn.get_child()
         rec_version = "<b>RECEIVER   </b><small>" + os.popen('rp --version').read().rstrip() + "</small>"
         rec_label.set_markup(rec_version)
         rec_btn.set_property("height-request", 50)
+        rec_btn.connect("clicked", self.select_mode, "rp");
         top_box.pack_end(rec_btn, False, True, 0)
         main_box.pack_start( top_box, False, False, 0 )
 
@@ -261,7 +303,44 @@ class OfrWindow(Gtk.Window):
 
         return sync_box
 
-    def add_receiver_screen( self, main_box ):
+    def add_gateway_screen( self ):
+        grid = Gtk.Grid()
+        grid.set_property("hexpand", True)
+
+        self.gw_ser_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.gw_ser_box.set_property("hexpand", True)
+        self.gw_ser_box.set_property("vexpand", True)
+        self.gw_ser_box.get_style_context().add_class("box")
+        ser_label = Gtk.Label(label="SERVICES", xalign=0)
+        ser_label.get_style_context().add_class("box-header")
+        self.gw_ser_box.pack_start(ser_label, False, False, 0)
+
+        grid.attach(self.gw_ser_box, 0, 0, 1, 1)
+
+        fil_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        fil_box.set_property("hexpand", True)
+        fil_box.set_property("vexpand", True)
+        fil_box.get_style_context().add_class("box")
+        fil_label = Gtk.Label(label="FILES", xalign=0)
+        fil_label.get_style_context().add_class("box-header")
+        fil_box.pack_start(fil_label, False, False, 0)
+        list_view = Gtk.TreeView(model=self.files_store)
+        col1r = Gtk.CellRendererText()
+        col1 = Gtk.TreeViewColumn("Age (s)", col1r, text=0)
+        col1.set_sort_column_id(0)
+        list_view.append_column(col1)
+        col2r = Gtk.CellRendererText()
+        col2 = Gtk.TreeViewColumn("Location", col2r, text=1)
+        list_view.append_column(col2)
+        col4r = Gtk.CellRendererText()
+        col4 = Gtk.TreeViewColumn("Size", col4r, text=2)
+        list_view.append_column(col4)
+        fil_box.pack_start(list_view, True, True, 0)
+        
+        grid.attach(fil_box, 1, 0, 2, 1)
+        return grid;
+
+    def add_receiver_screen( self ):
         grid = Gtk.Grid()
         grid.set_property("hexpand", True)
         sdr_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -286,21 +365,27 @@ class OfrWindow(Gtk.Window):
 
         self.gain = Gtk.Label(label="-", xalign=1)
         self.gain.get_style_context().add_class("control-value")
-        self.add_control( controls, ctrl_row, "Gain", self.gain, "[0..1]")
+        self.gain_val_label = Gtk.Label(label="Gain", xalign=0)
+        controls.attach(self.gain_val_label, 0, ctrl_row, 1, 1)
+        self.gain.set_property("hexpand", True)
+        self.gain.set_property("valign", 3)
+        controls.attach(self.gain, 1, ctrl_row, 1, 1)
+        self.gain_unit_label = Gtk.Label(label="dB", xalign=0)
+        controls.attach(self.gain_unit_label, 2, ctrl_row, 1, 1)
         ctrl_row += 1
 
         gain_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        gain_down_button = Gtk.Button(label="−")
+        gain_down_button = Gtk.Button(label="− {:.0f} dB".format(gain_step))
         gain_down_button.set_property("height-request", 40)
-        gain_down_button.set_property("width-request", 75)
+        gain_down_button.set_property("width-request", 147)
         gain_down_button.connect("clicked", self.gain_down, None)
         gain_box.pack_start(gain_down_button, False, False, 0)
-        gain_up_button = Gtk.Button(label="+")
+        gain_up_button = Gtk.Button(label="+ {:.0f} dB".format(gain_step))
         gain_up_button.set_property("height-request", 40)
-        gain_up_button.set_property("width-request", 75)
+        gain_up_button.set_property("width-request", 147)
         gain_up_button.connect("clicked", self.gain_up, None)
         gain_box.pack_start(gain_up_button, False, False, 0)
-        controls.attach(gain_box, 1, ctrl_row, 1, 1)
+        controls.attach(gain_box, 0, ctrl_row, 3, 1)
         ctrl_row += 1
 
         self.antenna = Gtk.Label(label="-", xalign=1)
@@ -364,7 +449,7 @@ class OfrWindow(Gtk.Window):
         self.channels_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.channels_box.set_property("hexpand", True)
         self.channels_box.get_style_context().add_class("box")
-        channels_label = Gtk.Label(label="Services", xalign=0)
+        channels_label = Gtk.Label(label="SERVICES", xalign=0)
         channels_label.get_style_context().add_class("box-header")
         self.channels_box.pack_start(channels_label, False, False, 0)
 
@@ -379,7 +464,7 @@ class OfrWindow(Gtk.Window):
         grid.set_property("expand", True)
         grid.set_property("column-homogeneous", True)
         grid.set_property("row-homogeneous", True)
-        main_box.add( grid )
+        return grid;
 
     def draw_spectrum( self, darea, cr):
         w = darea.get_allocated_width()
@@ -437,6 +522,44 @@ class OfrWindow(Gtk.Window):
             [i,q] = struct.unpack_from('ff', darea.pmch_data, p*8)
             cr.arc(w/2+i*w/2.5, h/2+q*h/2.5, 2, 0, 2*math.pi)
             cr.fill()
+
+    def gw_not_running(self):
+        self.files_store.clear()
+
+    def update_gw_files(self, files):
+        self.files_store.clear()
+        for f in files:
+            self.files_store.append([f["age"], f["location"], f["content_length"]])
+
+    def update_gw_services(self, services):
+        for s in self.gw_ser_box.get_children():
+            self.gw_ser_box.remove(s)
+        
+        services_label = Gtk.Label(label="SERVICES", xalign=0)
+        services_label.get_style_context().add_class("box-header")
+        self.gw_ser_box.pack_start(services_label, False, False, 0)
+        for s in services:
+            info = ""
+            mtch_idx = 0
+            info += "  <b>"+s["service_name"]+"</b>\n  SA TMGI: <b>" + ("0x%x" % int(s["service_tmgi"],16)) + "</b>\n" \
+                "  Stream type: <b>" + s["stream_type"] + "</b>\n" \
+                "  Stream m'cast: <b>" + s["stream_mcast"] + "</b>\n"
+            if s["stream_type"] == "FLUTE/UDP":
+                info += "  Stream TMGI: <b>" + ("0x%x" % int(s["stream_tmgi"],16)) + "</b>"
+
+            ch_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+            play_btn = Gtk.Button(label="▷")
+            play_btn.get_style_context().add_class("select-const-btn")
+            play_btn.set_property("height-request", 50)
+            play_btn.set_property("width-request", 50)
+            play_btn.connect("clicked", self.play_service, s)
+            ch_box.pack_start(play_btn, False, False, 0)
+            ch_label = Gtk.Label(label="", xalign=0)
+            ch_label.set_markup(info.rstrip())
+            ch_box.pack_start(ch_label, False, False, 0)
+            self.gw_ser_box.pack_start(ch_box, False, False, 0)
+            self.gw_ser_box.show_all()
+
 
     def rp_not_running(self):
         self.state = 'stopped'
@@ -512,6 +635,7 @@ class OfrWindow(Gtk.Window):
         self.fcen.set_text("{:.2f}".format(sdr['frequency']/1000000.0))
         self.gain_val = sdr['gain']
         self.gain.set_text("{:.2f}".format(sdr['gain']))
+        self.gain_val_label.set_text("Gain ({:.0f}..{:.0f})".format(sdr['min_gain'],sdr['max_gain']))
         self.antenna.set_text(sdr['antenna'])
         self.antenna_val = sdr['antenna']
         self.sr = sdr['sample_rate']
@@ -538,7 +662,7 @@ class OfrWindow(Gtk.Window):
         for ch in self.channels_box.get_children():
             self.channels_box.remove(ch)
         
-        channels_label = Gtk.Label(label="Services", xalign=0)
+        channels_label = Gtk.Label(label="SERVICES", xalign=0)
         channels_label.get_style_context().add_class("box-header")
         self.channels_box.pack_start(channels_label, False, False, 0)
         for mch in mch_info:
@@ -564,46 +688,63 @@ class OfrWindow(Gtk.Window):
             mch_idx += 1
 
     def get_status(self):
-        last_net = psutil.net_io_counters()
-        last_net_time = time.time()
+        self.last_net = psutil.net_io_counters()
+        self.last_net_time = time.time()
         while True:
-            try:
-                cpu = psutil.cpu_percent(0, False)
-                mem = psutil.virtual_memory()
-                temp = psutil.sensors_temperatures()
-                this_net = psutil.net_io_counters()
-                now = time.time()
-                down_bytes = this_net.bytes_recv - last_net.bytes_recv
-                up_bytes = this_net.bytes_sent - last_net.bytes_sent
-                GLib.idle_add(self.update_sys_stats, cpu, mem, temp, 
-                        (down_bytes/(now-last_net_time)*8.0/1000000.0), (up_bytes/(now-last_net_time)*8.0/1000000.0))
-                last_net = psutil.net_io_counters()
-                last_net_time = time.time()
-                response = requests.get(api_url + "status", verify=False)
-                rj = response.json()
-                response = requests.get(api_url + "sdr_params", verify=False)
-                sj = response.json()
-                GLib.idle_add(self.update_state, rj, sj)
-                response = requests.get(api_url + "ce_values", verify=False)
-                ce = response.content
-                GLib.idle_add(self.update_ce_graph, ce)
-                response = requests.get(api_url + "pdsch_data", verify=False)
-                GLib.idle_add(self.update_constellation, self.pdsch_box, response.content)
-                response = requests.get(api_url + "pdsch_status", verify=False)
-                GLib.idle_add(self.update_pmch_status, self.pdsch_box, response.json(), "")
-                response = requests.get(api_url + "mch_info", verify=False)
-                GLib.idle_add(self.update_services, response.json())
-                response = requests.get(api_url + "mcch_data", verify=False)
-                GLib.idle_add(self.update_constellation, self.mcch_box, response.content)
-                response = requests.get(api_url + "mcch_status", verify=False)
-                GLib.idle_add(self.update_pmch_status, self.mcch_box, response.json(), "MCCH")
-                response = requests.get(api_url + "mch_status/" + str(self.selected_mch), verify=False)
-                GLib.idle_add(self.update_pmch_status, self.pmch0_box, response.json(), "MCH {:d}".format(self.selected_mch))
-                response = requests.get(api_url + "mch_data/" + str(self.selected_mch), verify=False)
-                GLib.idle_add(self.update_constellation, self.pmch0_box, response.content)
-            except:
-                GLib.idle_add(self.rp_not_running)
+            if self.mode == "rp":
+                self.get_rp_status()
+            elif self.mode == "gw":
+                self.get_gw_status()
             time.sleep(0.2)
+
+    def get_gw_status(self):
+        try:
+            response = requests.get(gw_api_url + "services", verify=False)
+            services = response.json()
+            GLib.idle_add(self.update_gw_services, services)
+            response = requests.get(gw_api_url + "files", verify=False)
+            files = response.json()
+            GLib.idle_add(self.update_gw_files, files)
+        except:
+            GLib.idle_add(self.gw_not_running)
+
+    def get_rp_status(self):
+        try:
+            cpu = psutil.cpu_percent(0, False)
+            mem = psutil.virtual_memory()
+            temp = psutil.sensors_temperatures()
+            this_net = psutil.net_io_counters()
+            now = time.time()
+            down_bytes = this_net.bytes_recv - self.last_net.bytes_recv
+            up_bytes = this_net.bytes_sent - self.last_net.bytes_sent
+            GLib.idle_add(self.update_sys_stats, cpu, mem, temp, 
+                    (down_bytes/(now-self.last_net_time)*8.0/1000000.0), (up_bytes/(now-self.last_net_time)*8.0/1000000.0))
+            last_net = psutil.net_io_counters()
+            self.last_net_time = time.time()
+            response = requests.get(rp_api_url + "status", verify=False)
+            rj = response.json()
+            response = requests.get(rp_api_url + "sdr_params", verify=False)
+            sj = response.json()
+            GLib.idle_add(self.update_state, rj, sj)
+            response = requests.get(rp_api_url + "ce_values", verify=False)
+            ce = response.content
+            GLib.idle_add(self.update_ce_graph, ce)
+            response = requests.get(rp_api_url + "pdsch_data", verify=False)
+            GLib.idle_add(self.update_constellation, self.pdsch_box, response.content)
+            response = requests.get(rp_api_url + "pdsch_status", verify=False)
+            GLib.idle_add(self.update_pmch_status, self.pdsch_box, response.json(), "")
+            response = requests.get(rp_api_url + "mch_info", verify=False)
+            GLib.idle_add(self.update_services, response.json())
+            response = requests.get(rp_api_url + "mcch_data", verify=False)
+            GLib.idle_add(self.update_constellation, self.mcch_box, response.content)
+            response = requests.get(rp_api_url + "mcch_status", verify=False)
+            GLib.idle_add(self.update_pmch_status, self.mcch_box, response.json(), "MCCH")
+            response = requests.get(rp_api_url + "mch_status/" + str(self.selected_mch), verify=False)
+            GLib.idle_add(self.update_pmch_status, self.pmch0_box, response.json(), "MCH {:d}".format(self.selected_mch))
+            response = requests.get(rp_api_url + "mch_data/" + str(self.selected_mch), verify=False)
+            GLib.idle_add(self.update_constellation, self.pmch0_box, response.content)
+        except:
+            GLib.idle_add(self.rp_not_running)
 
 
 
@@ -625,8 +766,8 @@ window.pmch0_box.hide()
 window.set_property("hexpand", False)
 window.fullscreen()
 window.set_resizable(False)
-window.set_default_size(400,200)
-window.set_size_request(400,200)
+window.set_default_size(1024,600)
+window.set_size_request(1024,600)
 
 thread = threading.Thread(target=window.get_status)
 thread.daemon = True
